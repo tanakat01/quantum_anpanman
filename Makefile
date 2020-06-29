@@ -1,4 +1,5 @@
-CXX = g++ -Wall -Ofast -DNDEBUG --std=c++14
+#CXX = g++ -Wall -Ofast --std=c++14
+CXX = g++ -Wall -O2 --std=c++14
 all : testAll make_all
 
 test : testAll

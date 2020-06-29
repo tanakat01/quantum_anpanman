@@ -12,27 +12,31 @@ typedef std::vector<vI> vvI;
  */
 bool isValid(vI const& v) {
   // has king
-  int or_sq = 0;
   int k_count = 0;
+  int b1_count = 0;
+  int b2_count = 0;
   vI count(8, 0);
   for (auto sq : v) {
-    or_sq |= sq;
     k_count += (sq & 1);
+    b1_count += ((sq >> 1) & 1);
+    b2_count += ((sq >> 2) & 1);
     count[sq]++;
   }
-  if ((or_sq & 1) == 0) return false;
+  if (k_count == 0) return false;
   if (count[1] > 1 || count[2] > 1 || count[4] > 1) return false;
   if (k_count == 1 && count[1] != 1) return false;
   if (v.size() == 3) {
-    if ((or_sq & 2) == 0) return false;
-    if ((or_sq & 4) == 0) return false;
+    if (b1_count == 0) return false;
+    if (b2_count == 0) return false;
+    if (b1_count == 1 && count[2] != 1) return false;
+    if (b2_count == 1 && count[4] != 1) return false;
   } else if (v.size() == 2) {
     if (count[2] == 1 && count[1] != 1) return false;
     if (count[4] == 1 && count[1] != 1) return false;
   }
-  if (count[1] == 1 && (count[3] + count[5] + count[7]) > 0) return false;
-  if (count[2] == 1 && (count[3] + count[6] + count[7]) > 0) return false;
-  if (count[4] == 1 && (count[5] + count[6] + count[7]) > 0) return false;
+  if (count[1] == 1 && k_count != 1) return false;
+  if (count[2] == 1 && b1_count != 1) return false;
+  if (count[4] == 1 && b2_count != 1) return false;
   return true;
 }
 
@@ -94,7 +98,7 @@ vvI make_permutations(int n) {
             }
             for (int i5 = 0; i5 < 15; i5++) {
               if (i5 == i0 || i5 == i1 || i5 == i2 || i5 == i3 || i5 == i4) continue;
-              r.push_back(vI{i0, i1, i2, i3, i4});
+              r.push_back(vI{i0, i1, i2, i3, i4, i5});
             }
           }
         }
@@ -105,6 +109,19 @@ vvI make_permutations(int n) {
 }
 
 int main() {
+#if 0
+  vvI teams = make_team(3);
+  for (auto t : teams) {
+    std::cerr << t << std::endl;
+  }
+#endif
+  Position testpos(
+"+6+4-3"
+"+1-3 ."
+" . . ."
+" . . ."
+" . . ."
+		   );
   std::unordered_set<uint64_t> all;
   for (int mynum = 1; mynum < 4; mynum++) {
     vvI my_teams = make_team(mynum);
@@ -121,7 +138,7 @@ int main() {
 #endif
           for (size_t i = 0; i < my_teams.size(); i++) {
             uint64_t v = 0;
-            for (size_t ii = 0; ii < mynum; ii++) {
+            for (int ii = 0; ii < mynum; ii++) {
               v |= uint64_t(my_teams[i][ii] | 0x8) << (permutations[k][ii] * 4);
 #if 0
               if (k == 100) {
@@ -130,13 +147,21 @@ int main() {
               }
 #endif
             }
-            for (size_t ii = 0; ii < opnum; ii++) {
+            for (int ii = 0; ii < opnum; ii++) {
               v |= uint64_t(op_teams[j][ii]) << (permutations[k][ii + mynum] * 4);
 #if 0
               if (k == 100) std::cerr << "ii=" << ii << std::hex << ",v=" << v << std::dec << std::endl;
 #endif
             }
             Position p = Position(v).normalize();
+#if 0
+	    if (p.v == testpos.v) {
+	      std::cerr << "my_teams[" << i << "]=" << my_teams[i] << std::endl;
+	      std::cerr << "op_teams[" << j << "]=" << op_teams[j] << std::endl;
+	      std::cerr << "permutations[" << k << "]=" << permutations[k] << std::endl;
+	      std::cerr << std::hex << "v=" << v << std::dec << std::endl;
+	    }
+#endif
 #if 0
             if (k == 100) {
               std::cerr << "p=" << p.to_string(true) << std::endl;
