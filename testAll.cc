@@ -15,14 +15,100 @@ BOOST_AUTO_TEST_CASE(testIO)
       "+7+7+7"
       );
     Position p(s);
-    std::cerr << s << "\\n\n";
-    std::cerr << p.to_string() << "\\n\n";
     BOOST_CHECK_EQUAL(s, p.to_string());
+  }
+}
+
+BOOST_AUTO_TEST_CASE(testFlipH)
+{
+  {
+    std::string s(
+"+4+2-3"
+"+1-3 ."
+" . . ."
+" . . ."
+" . . .");
+    Position p(s);
+    std::string s1(
+"-3+2+4"
+" .-3+1"
+" . . ."
+" . . ."
+" . . .");
+    Position p1(s1);
+    Position p2 = p.flipH();
+    BOOST_CHECK_MESSAGE(p1.v == p2.v, p2.to_string(true));
+    //    std::cerr << p1.to_string(true) << std::endl;
+  }
+}
+
+BOOST_AUTO_TEST_CASE(testFlipTurn)
+{
+  {
+    std::string s(
+"+4+2-3"
+"+1-3 ."
+" . . ."
+" . . ."
+" . . .");
+    Position p(s);
+    std::string s1(
+" . . ."
+" . . ."
+" . . ."
+"-1+3 ."
+"-4-2+3");
+    Position p1(s1);
+    Position p2 = p.flipTurn();
+    BOOST_CHECK_MESSAGE(p1.v == p2.v, p2.to_string(true));
+    //    std::cerr << p1.to_string(true) << std::endl;
+  }
+}
+
+BOOST_AUTO_TEST_CASE(testFlipV)
+{
+  {
+    std::string s(
+"+4+2-3"
+"+1-3 ."
+" . . ."
+" . . ."
+" . . .");
+    Position p(s);
+    std::string s1(
+" . . ."
+" . . ."
+" . . ."
+"+1-3 ."
+"+4+2-3");
+    Position p1(s1);
+    Position p2 = p.flipV();
+    BOOST_CHECK_MESSAGE(p1.v == p2.v, p2.to_string(true));
+    //    std::cerr << p1.to_string(true) << std::endl;
   }
 }
 
 BOOST_AUTO_TEST_CASE(testMove)
 {
+  {
+    std::string s(
+"+5+2-3"
+"+5-3 ."
+" . . ."
+" . . ."
+" . . .");
+    Position p(s);
+    std::string s1(
+"+5+2-1"
+" .+5 ."
+" . . ."
+" . . ."
+" . . .");
+    Position p1(s1);
+    Position p2 = p.move(0, 1, 1, 1, 13);
+    BOOST_CHECK_MESSAGE(p1.v == p2.v, p2.to_string(true));
+    //    std::cerr << p1.to_string(true) << std::endl;
+  }
   {
     std::string s(
 "+6+6-4"
@@ -183,9 +269,11 @@ BOOST_AUTO_TEST_CASE(testNext)
       );
     Position p(s);
     Next ns = p.next_positions();
+#if 0
     for (auto p1 : ns.second) {
-      std::cerr << p.to_string(true) << std::endl;
+      std::cerr << p1.to_string(true) << std::endl;
     }
+#endif
     {
      std::string s1(
 		  " .+4-1"
@@ -208,9 +296,11 @@ BOOST_AUTO_TEST_CASE(testNext)
       );
     Position p(s);
     Next ns = p.next_positions();
+#if 0
     for (auto p : ns.second) {
       std::cerr << p.to_string(true) << std::endl;
     }
+#endif
     {
       std::string s1(
 		     "+4+2-1"
@@ -233,9 +323,11 @@ BOOST_AUTO_TEST_CASE(testNext)
       );
     Position p(s);
     Next ns = p.next_positions();
+#if 0
     for (auto p : ns.second) {
       std::cerr << p.to_string(true) << std::endl;
     }
+#endif
     {
       std::string s1(
 		     "+4+2-1"
@@ -326,7 +418,9 @@ BOOST_AUTO_TEST_CASE(testNext)
       Position p1 = Position(s1).flipTurn();
       BOOST_CHECK(std::find(ns.second.begin(), ns.second.end(), p1) != ns.second.end());
     }
+#if 0
     std::cerr << ns << std::endl;
+#endif
   }
   {
     std::string s(
@@ -338,7 +432,9 @@ BOOST_AUTO_TEST_CASE(testNext)
       );
     Position p(s);
     Next ns = p.next_positions();
+#if 0
     std::cerr << ns << std::endl;
+#endif
     {
       std::string s1(
         "-7-7-7"
@@ -387,9 +483,11 @@ BOOST_AUTO_TEST_CASE(testNext)
       );
     Position p(s);
     Next ns = p.next_positions();
+#if 0
     for (auto p : ns.second) {
       std::cerr << p.to_string(true) << std::endl;
     }
+#endif
     {
       std::string s1(
         " . . ."
@@ -412,9 +510,11 @@ BOOST_AUTO_TEST_CASE(testNext)
       );
     Position p(s);
     Next ns = p.next_positions();
+#if 0
     for (auto p : ns.second) {
       std::cerr << p.to_string(true) << std::endl;
     }
+#endif
     {
       std::string s1(
         " . . ."

@@ -21,12 +21,16 @@ std::ostream& operator<<(std::ostream& os, std::vector<T> const& v) {
 }
 
 int popcount(uint64_t x) {
+#if defined(__GNUC__) || defined(__clang__)
+  return __builtin_popcountll(x);
+#else
   int r = 0;
   while (x != 0) {
     x &= (x - 1);
     r++;
   }
   return r;
+#endif
 }
 
 
@@ -34,8 +38,6 @@ template<typename S, typename T>
 std::ostream& operator<<(std::ostream& os, std::pair<S, T> const& v) {
   return os << "<" << v.first << ", " << v.second << ">";
 }
-
-
 
 /*
   4 bit per square
@@ -63,7 +65,6 @@ struct Position {
   using vP = std::vector<Position>;
   uint64_t v;
   explicit Position(uint64_t v_) :v(v_) {}
-//  explicit Position(Position const& p) :v(p.v) {}
   explicit Position(std::string s) :v(0) {
     if (s.size() != size_t(W * H * 2)) {
       std::cerr << "format error" << std::endl;
@@ -73,9 +74,11 @@ struct Position {
       for (int x = 0; x < 3; x++) {
         int i = xy2i(x, y);
         int sq = 0;
-        if (s[i * 2] == '+') sq = s[i * 2 + 1] - '0' + 8;
-        else if (s[i * 2] == '-') sq = s[i * 2 + 1] - '0';
-        else if (s[i * 2] != ' ' || s[i * 2 + 1] != '.') {
+        if (s[i * 2] == '+') {
+          sq = s[i * 2 + 1] - '0' + 8;
+        } else if (s[i * 2] == '-') {
+          sq = s[i * 2 + 1] - '0';
+        } else if (s[i * 2] != ' ' || s[i * 2 + 1] != '.') {
           std::cerr << "format error" << std::endl;
           return;
         }
@@ -107,41 +110,37 @@ struct Position {
     v = (v & ~m) | (uint64_t(sq) << (i * 4));
   }
   Position flipH() const {
-    uint64_t v_ =
-      ((v & Mx0) >> 8) | (v & Mx1) |((v & Mx2) << 8);
-    return Position(v_);
+    uint64_t v1 = ((v & Mx0) >> 8) | (v & Mx1) |((v & Mx2) << 8);
+    return Position(v1);
   }
   Position flipV() const {
-    uint64_t v_ =
-      ((v & My4) >> 48) | ((v & My3) >> 24) | (v & My2) |
+    uint64_t v1 = ((v & My4) >> 48) | ((v & My3) >> 24) | (v & My2) |
       ((v & My1) << 24) | ((v & My0) << 48);
-    return Position(v_);
+    return Position(v1);
   }
   Position normalize() const {
-    Position fh = flipH();
-    return Position(std::min(fh.v, v));
+    return Position(std::min(flipH().v, v));
   }
   uint64_t pieceMask() const {
-    uint64_t pm =
-      ((v & Mb0) << 3) |
-      ((v & Mb1) << 2) |
-      ((v & Mb2) << 1);
-    return pm;
+    return ((v & Mb0) << 3) | ((v & Mb1) << 2) | ((v & Mb2) << 1);
   }
   uint64_t myPieceMask() const {
-    return v & Mb3 & pieceMask();
+    return v & pieceMask();
   }
   uint64_t opPieceMask() const {
-    return ~v & Mb3 & pieceMask();
+    return ~v & pieceMask();
   }
   Position flipTurn() const {
-    uint64_t v_ = v ^ pieceMask();
-    return Position(v_).flipV();
+    return Position(v ^ pieceMask()).flipV();
+  }
+  uint64_t myKings() const {
+    return (v >> 3) & v & Mb0;
+  }
+  uint64_t opKings() const {
+    return (~v >> 3) & v & Mb0;
   }
   bool isLose() const {
-    uint64_t myMask = (v & Mb3);
-    if ((~(myMask >> 3) & v & Mb0 & My4) != 0) return true;
-    return false;
+    return (opKings() & My4) != 0;
   }
   bool isWin() const {
     Next ns = next_positions();
@@ -150,7 +149,7 @@ struct Position {
   }
   using Next = std::pair<int, vP>;
   bool can_move_on(int x2, int y2) const {
-    if (x2 < 0 || x2 >= W || y2 < 0) return false;
+    if (x2 < 0 || x2 >= W || y2 < 0 || y2 >= H) return false;
     int sq1 = get(x2, y2);
     if (sq1 >= 8) return false;
     return true;
@@ -165,18 +164,16 @@ struct Position {
     }
     return r;
   }
-  bool valid_piece_pos() const { // assert piece valiation is valid
-//    std::cerr << std::hex << v << std::dec << std::endl;
-    if (((v >> 3) & (v & Mb0) & My0) != 0) return false;
-    if ((((~(v & Mb3)>> 3)) & (v & Mb0) & My4) != 0) return false;
+  bool valid_piece_pos() const {  // assert piece valiation is valid
+    if ((myKings() & My0) != 0) return false;
+    if ((opKings() & My4) != 0) return false;
     return true;
   }
   void eliminate_my_kings() {
-    uint64_t my_kings = (v >> 3) & (v & Mb0);
-    v ^= my_kings;
+    v ^= myKings();
   }
   bool determine_op_kings() {
-    uint64_t op_kings = (~(v >> 3)) & (v & Mb0);
+    uint64_t op_kings = opKings();
     if (op_kings == 0) return true;  // win
     if ((op_kings & (op_kings - 1)) == 0) {  // one-bit
       for (int y = 0; y < 5; y++) {
@@ -195,8 +192,8 @@ struct Position {
     for (size_t i = 0; i < 15; i++) {
       uint64_t mask_i = 0xfull << (i * 4);
       if ((mask & mask_i) != 0) {
-	v = (v & ~mask_i) | (uint64_t(sq) << (i * 4));
-	return;
+        v = (v & ~mask_i) | (uint64_t(sq) << (i * 4));
+        return;
       }
     }
   }
@@ -213,8 +210,7 @@ struct Position {
     int capture_sq = n.get(x2, y2);
     n.set(x2, y2, sq);
     n.set(x1, y1, 0);
-    if (sq != orig_sq) { // normalize my piece
-      //std::cerr << "sq=" << sq << ",orig_sq=" << orig_sq << std::endl;
+    if (sq != orig_sq) {  // normalize my piece
       uint64_t mask = n.myPieceMask();
       uint64_t old_mask = myPieceMask();
       uint64_t old_b0_mask = (v & (old_mask >> 3));
@@ -223,56 +219,37 @@ struct Position {
       uint64_t b0_mask = (n.v & (mask >> 3));
       uint64_t b1_mask = (n.v & (mask >> 2));
       uint64_t b2_mask = (n.v & (mask >> 1));
-#if 0
-      std::cerr << "b2_mask=" << std::hex << b2_mask << ",old_b2_mask=" << old_b2_mask << std::dec << std::endl;
-      std::cerr << "b1_mask=" << std::hex << b1_mask << ",old_b1_mask=" << old_b1_mask << std::dec << std::endl;
-      std::cerr << "b0_mask=" << std::hex << b0_mask << ",old_b0_mask=" << old_b0_mask << std::dec << std::endl;	
-#endif
-	while (b0_mask != old_b0_mask || b1_mask != old_b1_mask || b2_mask != old_b2_mask) {
-	uint64_t b0_only_mask = b0_mask & (~b1_mask >> 1) & (~b2_mask >> 2);
-	uint64_t b1_only_mask = (~b0_mask << 1) & b1_mask & (~b2_mask >> 1);
-	uint64_t b2_only_mask = (~b0_mask << 2) & (~b1_mask << 1) & b2_mask;
-#if 0
-	std::cerr << "my before n=" << n.to_string(true) << ",n_v=" << std::hex << n.v << std::dec << std::endl;
-	std::cerr << "b2_mask=" << std::hex << b2_mask << ",b2_only_mask=" << b2_only_mask << std::dec << std::endl;
-	std::cerr << "b1_mask=" << std::hex << b1_mask << ",b1_only_mask=" << b1_only_mask << std::dec << std::endl;
-	std::cerr << "b0_mask=" << std::hex << b0_mask << ",b0_only_mask=" << b0_only_mask << std::dec << std::endl;	
-#endif
-	if (b0_only_mask == 0 && popcount(b0_mask) == 1) {
-	  n.set_mask(b0_mask, 0b1001);
-	} else if (b0_only_mask != 0 && b0_only_mask != b0_mask) {
-	  n.v ^= b0_mask ^ b0_only_mask;
-	} else if (b1_only_mask == 0 && popcount(b1_mask) == 1) {
-	  n.set_mask(b1_mask, 0b1010);
-	} else if (b1_only_mask != 0 && b1_only_mask != b1_mask) {
-	  n.v ^= b1_mask ^ b1_only_mask;
-	} else if (b2_only_mask == 0 && popcount(b2_mask) == 1) {
-	  n.set_mask(b2_mask, 0b1100);
-	} else if (b2_only_mask != 0 && b2_only_mask != b2_mask) {
-#if 0
-	  std::cerr << "b2_mask=" << std::hex << b2_mask << ",b2_only_mask=" << b2_only_mask << std::dec << std::endl;
-	  std::cerr << "n.v=" << std::hex << n.v << ",xor = " << (b2_mask ^ b2_only_mask) << std::dec << std::endl;
-#endif
-	  n.v ^= b2_mask ^ b2_only_mask;
-#if 0
-	  std::cerr << "n.v=" << std::hex << n.v << std::dec << std::endl;
-#endif
-	}
-	old_b0_mask = b0_mask;
-	old_b1_mask = b1_mask;
-	old_b2_mask = b2_mask;
-	b0_mask = (n.v & (mask >> 3));
-	b1_mask = (n.v & (mask >> 2));
-	b2_mask = (n.v & (mask >> 1));
-	//std::cerr << "my: n=" << n.to_string(true) << std::endl;
+        while (b0_mask != old_b0_mask || b1_mask != old_b1_mask || b2_mask != old_b2_mask) {
+        uint64_t b0_only_mask = b0_mask & (~b1_mask >> 1) & (~b2_mask >> 2);
+        uint64_t b1_only_mask = (~b0_mask << 1) & b1_mask & (~b2_mask >> 1);
+        uint64_t b2_only_mask = (~b0_mask << 2) & (~b1_mask << 1) & b2_mask;
+        if (b0_only_mask == 0 && popcount(b0_mask) == 1) {
+          n.set_mask(b0_mask, 0b1001);
+        } else if (b0_only_mask != 0 && b0_only_mask != b0_mask) {
+          n.v ^= b0_mask ^ b0_only_mask;
+        } else if (b1_only_mask == 0 && popcount(b1_mask) == 1) {
+          n.set_mask(b1_mask, 0b1010);
+        } else if (b1_only_mask != 0 && b1_only_mask != b1_mask) {
+          n.v ^= b1_mask ^ b1_only_mask;
+        } else if (b2_only_mask == 0 && popcount(b2_mask) == 1) {
+          n.set_mask(b2_mask, 0b1100);
+        } else if (b2_only_mask != 0 && b2_only_mask != b2_mask) {
+          n.v ^= b2_mask ^ b2_only_mask;
+        }
+        old_b0_mask = b0_mask;
+        old_b1_mask = b1_mask;
+        old_b2_mask = b2_mask;
+        b0_mask = (n.v & (mask >> 3));
+        b1_mask = (n.v & (mask >> 2));
+        b2_mask = (n.v & (mask >> 1));
       }
     }
-    if (capture_sq != 0) { // normalize opp piece
+    if (capture_sq != 0) {  // normalize opp piece
       uint64_t mask = n.opPieceMask();
       if (capture_sq == 3) {
-	n.v &= ~(mask >> 2);
+        n.v &= ~(mask >> 2);
       } else if (capture_sq == 5) {
-	n.v &= ~(mask >> 1);
+        n.v &= ~(mask >> 1);
       }
       uint64_t old_mask = opPieceMask();
       uint64_t old_b0_mask = (v & (old_mask >> 3));
@@ -282,37 +259,37 @@ struct Position {
       uint64_t b1_mask = (n.v & (mask >> 2));
       uint64_t b2_mask = (n.v & (mask >> 1));
       while (b0_mask != old_b0_mask || b1_mask != old_b1_mask || b2_mask != old_b2_mask) {
-	uint64_t b0_only_mask = b0_mask & (~b1_mask >> 1) & (~b2_mask >> 2);
-	uint64_t b1_only_mask = (~b0_mask << 1) & b1_mask & (~b2_mask >> 1);
-	uint64_t b2_only_mask = (~b0_mask << 2) & (~b1_mask << 1) & b2_mask;
-	if (b0_only_mask == 0 && popcount(b0_mask) == 1) {
-	  n.set_mask(b0_mask, 0b0001);
-	} else if (b0_only_mask != 0 && b0_only_mask != b0_mask) {
-	  n.v ^= b0_mask ^ b0_only_mask;
-	} else if (b1_only_mask == 0 && popcount(b1_mask) == 1) {
-	  n.set_mask(b1_mask, 0b0010);
-	} else if (b1_only_mask != 0 && b1_only_mask != b1_mask) {
-	  n.v ^= b1_mask ^ b1_only_mask;
-	} else if (b2_only_mask == 0 && popcount(b2_mask) == 1) {
-	  n.set_mask(b2_mask, 0b0100);
-	} else if (b2_only_mask != 0 && b2_only_mask != b2_mask) {
-	  n.v ^= b2_mask ^ b2_only_mask;
-	}
-	old_b0_mask = b0_mask;
-	old_b1_mask = b1_mask;
-	old_b2_mask = b2_mask;
-	b0_mask = (n.v & (mask >> 3));
-	b1_mask = (n.v & (mask >> 2));
-	b2_mask = (n.v & (mask >> 1));
-	//	std::cerr << "op: n=" << n.to_string(true) << std::endl;
+        uint64_t b0_only_mask = b0_mask & (~b1_mask >> 1) & (~b2_mask >> 2);
+        uint64_t b1_only_mask = (~b0_mask << 1) & b1_mask & (~b2_mask >> 1);
+        uint64_t b2_only_mask = (~b0_mask << 2) & (~b1_mask << 1) & b2_mask;
+        if (b0_only_mask == 0 && popcount(b0_mask) == 1) {
+          n.set_mask(b0_mask, 0b0001);
+        } else if (b0_only_mask != 0 && b0_only_mask != b0_mask) {
+          n.v ^= b0_mask ^ b0_only_mask;
+        } else if (b1_only_mask == 0 && popcount(b1_mask) == 1) {
+          n.set_mask(b1_mask, 0b0010);
+        } else if (b1_only_mask != 0 && b1_only_mask != b1_mask) {
+          n.v ^= b1_mask ^ b1_only_mask;
+        } else if (b2_only_mask == 0 && popcount(b2_mask) == 1) {
+          n.set_mask(b2_mask, 0b0100);
+        } else if (b2_only_mask != 0 && b2_only_mask != b2_mask) {
+          n.v ^= b2_mask ^ b2_only_mask;
+        }
+        old_b0_mask = b0_mask;
+        old_b1_mask = b1_mask;
+        old_b2_mask = b2_mask;
+        b0_mask = (n.v & (mask >> 3));
+        b1_mask = (n.v & (mask >> 2));
+        b2_mask = (n.v & (mask >> 1));
+        //        std::cerr << "op: n=" << n.to_string(true) << std::endl;
       }
     }
     return n;
   }
-  bool check_and_move(vP* r, vP* winr, int x1, int y1, int x2, int y2, int sq) const {
+  bool check_and_move(vP* r, vP* winr, int x1, int y1,
+                      int x2, int y2, int sq) const {
     if (can_move_on(x2, y2)) {
       Position p = move(x1, y1, x2, y2, sq);
-      // std::cerr << "check_and_move(x2=" << x2 << ",y2=" << y2 << ",sq=" << sq << ",p=" << p.to_string() << std::endl;
       if (p.determine_op_kings() || (y2 == 0 && (sq & 1) != 0)) {
         winr->push_back(p.flipTurn());
         return true;
