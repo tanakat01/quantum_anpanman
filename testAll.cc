@@ -92,6 +92,25 @@ BOOST_AUTO_TEST_CASE(testMove)
 {
   {
     std::string s(
+" .-3 ."
+" .-5 ."
+" . . ."
+" . .-7"
+"+2+1 .");
+    Position p(s);
+    std::string s1(
+" .-3 ."
+" .-5 ."
+" . . ."
+" . .+1"
+"+2 . .");
+    Position p1(s1);
+    Position p2 = p.move(1, 4, 2, 3, 9);
+    BOOST_CHECK_MESSAGE(p1.v == p2.v, p2.to_string(true));
+    //    std::cerr << p1.to_string(true) << std::endl;
+  }
+  {
+    std::string s(
 "+5+2-3"
 "+5-3 ."
 " . . ."

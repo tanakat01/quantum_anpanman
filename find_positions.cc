@@ -1,5 +1,9 @@
 #include "./position.h"
 #include "./position_set.h"
+#include <string>
+#include <vector>
+#include <algorithm>
+#include <set>
 #include <boost/program_options.hpp>
 namespace po = boost::program_options;
 
@@ -40,13 +44,40 @@ void show1(PositionSet const& ps, vC const& count, size_t i, bool turn=true) {
   }
 }
 
+std::string pieceStr(Position const& p, int turn) {
+  std::vector<int> ps;
+  for (size_t y = 0; y < 5; y++) {
+    for (size_t x = 0; x < 3; x++) {
+      int v = p.get(x, y);
+      if (v != 0 and ((v >> 3) & 1) == turn) {
+	ps.push_back(v & 7);
+      }
+    }
+  }
+  std::sort(ps.begin(), ps.end());
+  std::string s;
+  for (size_t i = 0; i < ps.size(); i++) {
+    s += (i == 0 ? "" : ":");
+    s += std::to_string(ps[i]);
+  }
+  return s;
+}
+
 int main(int ac, char **ag) {
+  int number_of_moves;
+  int print_count;
   bool all_positions;
   po::options_description options("all_options");
   options.add_options()
     ("all,a",
      po::value<bool>(&all_positions),
      "all positions")
+    ("number-of-moves,m",
+     po::value<int>(&number_of_moves)->default_value(-1),
+     "select states whose move counts matches the number")
+    ("print-count,c",
+     po::value<int>(&print_count)->default_value(-1),
+     "how many states must be printed")
     ;
   po::variables_map vm;
   try
@@ -66,18 +97,14 @@ int main(int ac, char **ag) {
   std::ifstream f((all_positions ? "count.bin" : "count_init.bin"));
   f.read((char *)(&count[0]), (char *)(&count[count.size()]) - (char *)(&count[0]));
   f.close();
-  std::string s;
-  while (s.size() < 30) {
-    std::string l;
-    std::getline(std::cin, l);
-    s += l;
+  std::vector<uint64_t> hist(256);
+  std::set<std::string> psset;
+  int show_count = 0;
+  std::cerr << "nubmer_of_moves=" << number_of_moves << std::endl;
+  for (size_t i = 0; i < ps.size(); i++) {
+    if (abs(count[i]) == number_of_moves && (print_count < 0 ||  ++show_count <= print_count)) {
+      show1(ps, count, i);
+    }
   }
-  std::cerr << s << std::endl;
-  Position p(s);
-  std::cerr << p.to_string(true) << std::endl;
-  std::cerr << "valid=" << p.valid_piece_pos() << std::endl;
-  int i = ps.find(p.normalize().v);
-  std::cerr << i << std::endl;
-  show1(ps, count, i, true);
 }
   

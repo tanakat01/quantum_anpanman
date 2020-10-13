@@ -9,6 +9,7 @@
 #include <string>
 #include <sstream>
 #include <cstdint>
+#include <bitset>
 typedef std::pair<int, int> II;
 
 template<typename T>
@@ -197,95 +198,7 @@ struct Position {
       }
     }
   }
-  Position move(int x1, int y1, int x2, int y2, int orig_sq) const {
-    Position n(*this);
-    int sq = orig_sq;
-    if (x1 != x2) {
-      if (y1 == y2) {
-        sq &= ~2;
-      } else {
-        sq &= ~4;
-      }
-    }
-    int capture_sq = n.get(x2, y2);
-    n.set(x2, y2, sq);
-    n.set(x1, y1, 0);
-    if (sq != orig_sq) {  // normalize my piece
-      uint64_t mask = n.myPieceMask();
-      uint64_t old_mask = myPieceMask();
-      uint64_t old_b0_mask = (v & (old_mask >> 3));
-      uint64_t old_b1_mask = (v & (old_mask >> 2));
-      uint64_t old_b2_mask = (v & (old_mask >> 1));
-      uint64_t b0_mask = (n.v & (mask >> 3));
-      uint64_t b1_mask = (n.v & (mask >> 2));
-      uint64_t b2_mask = (n.v & (mask >> 1));
-        while (b0_mask != old_b0_mask || b1_mask != old_b1_mask || b2_mask != old_b2_mask) {
-        uint64_t b0_only_mask = b0_mask & (~b1_mask >> 1) & (~b2_mask >> 2);
-        uint64_t b1_only_mask = (~b0_mask << 1) & b1_mask & (~b2_mask >> 1);
-        uint64_t b2_only_mask = (~b0_mask << 2) & (~b1_mask << 1) & b2_mask;
-        if (b0_only_mask == 0 && popcount(b0_mask) == 1) {
-          n.set_mask(b0_mask, 0b1001);
-        } else if (b0_only_mask != 0 && b0_only_mask != b0_mask) {
-          n.v ^= b0_mask ^ b0_only_mask;
-        } else if (b1_only_mask == 0 && popcount(b1_mask) == 1) {
-          n.set_mask(b1_mask, 0b1010);
-        } else if (b1_only_mask != 0 && b1_only_mask != b1_mask) {
-          n.v ^= b1_mask ^ b1_only_mask;
-        } else if (b2_only_mask == 0 && popcount(b2_mask) == 1) {
-          n.set_mask(b2_mask, 0b1100);
-        } else if (b2_only_mask != 0 && b2_only_mask != b2_mask) {
-          n.v ^= b2_mask ^ b2_only_mask;
-        }
-        old_b0_mask = b0_mask;
-        old_b1_mask = b1_mask;
-        old_b2_mask = b2_mask;
-        b0_mask = (n.v & (mask >> 3));
-        b1_mask = (n.v & (mask >> 2));
-        b2_mask = (n.v & (mask >> 1));
-      }
-    }
-    if (capture_sq != 0) {  // normalize opp piece
-      uint64_t mask = n.opPieceMask();
-      if (capture_sq == 3) {
-        n.v &= ~(mask >> 2);
-      } else if (capture_sq == 5) {
-        n.v &= ~(mask >> 1);
-      }
-      uint64_t old_mask = opPieceMask();
-      uint64_t old_b0_mask = (v & (old_mask >> 3));
-      uint64_t old_b1_mask = (v & (old_mask >> 2));
-      uint64_t old_b2_mask = (v & (old_mask >> 1));
-      uint64_t b0_mask = (n.v & (mask >> 3));
-      uint64_t b1_mask = (n.v & (mask >> 2));
-      uint64_t b2_mask = (n.v & (mask >> 1));
-      while (b0_mask != old_b0_mask || b1_mask != old_b1_mask || b2_mask != old_b2_mask) {
-        uint64_t b0_only_mask = b0_mask & (~b1_mask >> 1) & (~b2_mask >> 2);
-        uint64_t b1_only_mask = (~b0_mask << 1) & b1_mask & (~b2_mask >> 1);
-        uint64_t b2_only_mask = (~b0_mask << 2) & (~b1_mask << 1) & b2_mask;
-        if (b0_only_mask == 0 && popcount(b0_mask) == 1) {
-          n.set_mask(b0_mask, 0b0001);
-        } else if (b0_only_mask != 0 && b0_only_mask != b0_mask) {
-          n.v ^= b0_mask ^ b0_only_mask;
-        } else if (b1_only_mask == 0 && popcount(b1_mask) == 1) {
-          n.set_mask(b1_mask, 0b0010);
-        } else if (b1_only_mask != 0 && b1_only_mask != b1_mask) {
-          n.v ^= b1_mask ^ b1_only_mask;
-        } else if (b2_only_mask == 0 && popcount(b2_mask) == 1) {
-          n.set_mask(b2_mask, 0b0100);
-        } else if (b2_only_mask != 0 && b2_only_mask != b2_mask) {
-          n.v ^= b2_mask ^ b2_only_mask;
-        }
-        old_b0_mask = b0_mask;
-        old_b1_mask = b1_mask;
-        old_b2_mask = b2_mask;
-        b0_mask = (n.v & (mask >> 3));
-        b1_mask = (n.v & (mask >> 2));
-        b2_mask = (n.v & (mask >> 1));
-        //        std::cerr << "op: n=" << n.to_string(true) << std::endl;
-      }
-    }
-    return n;
-  }
+  Position move(int x1, int y1, int x2, int y2, int orig_sq) const;
   bool check_and_move(vP* r, vP* winr, int x1, int y1,
                       int x2, int y2, int sq) const {
     if (can_move_on(x2, y2)) {
@@ -349,4 +262,110 @@ using Next = Position::Next;
 std::ostream& operator<<(std::ostream& os, Position const& p) {
   return os << p.to_string();
 }
+Position Position::move(int x1, int y1, int x2, int y2, int orig_sq) const {
+    Position n(*this);
+    int sq = orig_sq;
+    if (x1 != x2) {
+      if (y1 == y2) {
+        sq &= ~2;
+      } else {
+        sq &= ~4;
+      }
+    }
+    int capture_sq = n.get(x2, y2);
+    n.set(x2, y2, sq);
+    n.set(x1, y1, 0);
+    if (sq != orig_sq) {  // normalize my piece
+      uint64_t mask = n.myPieceMask();
+      uint64_t old_mask = myPieceMask();
+      uint64_t old_b0_mask = (v & (old_mask >> 3));
+      uint64_t old_b1_mask = (v & (old_mask >> 2));
+      uint64_t old_b2_mask = (v & (old_mask >> 1));
+      uint64_t b0_mask = (n.v & (mask >> 3));
+      uint64_t b1_mask = (n.v & (mask >> 2));
+      uint64_t b2_mask = (n.v & (mask >> 1));
+        while (b0_mask != old_b0_mask || b1_mask != old_b1_mask || b2_mask != old_b2_mask) {
+        uint64_t b0_only_mask = b0_mask & (~b1_mask >> 1) & (~b2_mask >> 2);
+        uint64_t b1_only_mask = (~b0_mask << 1) & b1_mask & (~b2_mask >> 1);
+        uint64_t b2_only_mask = (~b0_mask << 2) & (~b1_mask << 1) & b2_mask;
+        if (b0_only_mask == 0 && popcount(b0_mask) == 1) {
+          n.set_mask(b0_mask, 0b1001);
+        } else if (b0_only_mask != 0 && b0_only_mask != b0_mask) {
+          n.v ^= b0_mask ^ b0_only_mask;
+        } else if (b1_only_mask == 0 && popcount(b1_mask) == 1) {
+          n.set_mask(b1_mask, 0b1010);
+        } else if (b1_only_mask != 0 && b1_only_mask != b1_mask) {
+          n.v ^= b1_mask ^ b1_only_mask;
+        } else if (b2_only_mask == 0 && popcount(b2_mask) == 1) {
+          n.set_mask(b2_mask, 0b1100);
+        } else if (b2_only_mask != 0 && b2_only_mask != b2_mask) {
+          n.v ^= b2_mask ^ b2_only_mask;
+        }
+        old_b0_mask = b0_mask;
+        old_b1_mask = b1_mask;
+        old_b2_mask = b2_mask;
+        b0_mask = (n.v & (mask >> 3));
+        b1_mask = (n.v & (mask >> 2));
+        b2_mask = (n.v & (mask >> 1));
+      }
+    }
+    if (capture_sq != 0) {  // normalize opp piece
+      uint64_t mask = n.opPieceMask();
+      if (capture_sq == 3) {
+        n.v &= ~(mask >> 2);
+      } else if (capture_sq == 5) {
+        n.v &= ~(mask >> 1);
+      }
+      uint64_t old_mask = opPieceMask();
+      uint64_t old_b0_mask = (v & (old_mask >> 3));
+      uint64_t old_b1_mask = (v & (old_mask >> 2));
+      uint64_t old_b2_mask = (v & (old_mask >> 1));
+      uint64_t b0_mask = (n.v & (mask >> 3));
+      uint64_t b1_mask = (n.v & (mask >> 2));
+      uint64_t b2_mask = (n.v & (mask >> 1));
+      while (b0_mask != old_b0_mask || b1_mask != old_b1_mask || b2_mask != old_b2_mask) {
+	//std::cerr << "n=" << n << std::endl;
+        uint64_t b0_only_mask = b0_mask & (~b1_mask >> 1) & (~b2_mask >> 2);
+        uint64_t b1_only_mask = (~b0_mask << 1) & b1_mask & (~b2_mask >> 1);
+        uint64_t b2_only_mask = (~b0_mask << 2) & (~b1_mask << 1) & b2_mask;
+#if 0
+	std::cerr << "   mask=" << std::bitset<60>(mask) << std::endl;
+	std::cerr << "b0_mask=" << std::bitset<60>(b0_mask) << std::endl;
+	std::cerr << "b1_mask=" << std::bitset<60>(b1_mask) << std::endl;
+	std::cerr << "b2_mask=" << std::bitset<60>(b2_mask) << std::endl;
+	std::cerr << "o0_mask=" << std::bitset<60>(b0_only_mask) << std::endl;
+	std::cerr << "o1_mask=" << std::bitset<60>(b1_only_mask) << std::endl;
+	std::cerr << "o2_mask=" << std::bitset<60>(b2_only_mask) << std::endl;
+#endif
+        if (b0_only_mask == 0 && popcount(b0_mask) == 1) {
+	  //	  std::cerr << "1" << std::endl;
+          n.set_mask(b0_mask, 0b0001);
+        } else if (b0_only_mask != 0 && b0_only_mask != b0_mask) {
+	  //	  std::cerr << "2" << std::endl;
+          n.v ^= b0_mask ^ b0_only_mask;
+        } else if (b1_only_mask == 0 && popcount(b1_mask) == 1 && popcount(mask) == 3) {
+	  //	  std::cerr << "3" << std::endl;
+          n.set_mask(b1_mask, 0b0010);
+        } else if (b1_only_mask != 0 && b1_only_mask != b1_mask) {
+	  //std::cerr << "4" << std::endl;
+          n.v ^= b1_mask ^ b1_only_mask;
+        } else if (b2_only_mask == 0 && popcount(b2_mask) == 1 && popcount(mask) == 3) {
+	  //	  std::cerr << "5" << std::endl;
+          n.set_mask(b2_mask, 0b0100);
+        } else if (b2_only_mask != 0 && b2_only_mask != b2_mask) {
+	  //	  std::cerr << "6" << std::endl;
+          n.v ^= b2_mask ^ b2_only_mask;
+        }
+        old_b0_mask = b0_mask;
+        old_b1_mask = b1_mask;
+        old_b2_mask = b2_mask;
+        b0_mask = (n.v & (mask >> 3));
+        b1_mask = (n.v & (mask >> 2));
+        b2_mask = (n.v & (mask >> 1));
+        //        std::cerr << "op: n=" << n.to_string(true) << std::endl;
+      }
+    }
+    return n;
+  }
+
 #endif
